@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import API2 from "../api/API2";
+import axios from "axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Container,
@@ -14,32 +14,37 @@ import {
   Loader,
   Modal,
   Textarea,
+  Alert,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconTrash, IconEdit } from "@tabler/icons-react";
+import { IconTrash, IconEdit, IconInfoCircle } from "@tabler/icons-react";
+
+const api = axios.create({
+  baseURL: "https://jsonplaceholder.typicode.com",
+});
 
 const fetchPosts = async () => {
-  const { data } = await API2.get("/posts");
-  return data.data || [];
+  const { data } = await api.get("/posts");
+  return data.slice(0, 20);
 };
 
 const addPost = async (newPost) => {
-  const { data } = await API2.post("/posts", newPost);
+  const { data } = await api.post("/posts", newPost);
   return data;
 };
 
 const updatePost = async ({ id, ...updated }) => {
-  const { data } = await API2.put(`/posts/${id}`, updated);
+  const { data } = await api.put(`/posts/${id}`, updated);
   return data;
 };
 
 const deletePost = async (id) => {
-  await API2.delete(`/posts/${id}`);
+  await api.delete(`/posts/${id}`);
 };
 
 const CrudPage = () => {
   const queryClient = useQueryClient();
-  const [editModal, setEditModal] = useState(false);
+  const [editModalOpened, setEditModalOpened] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
 
   const { data: posts = [], isLoading } = useQuery({
@@ -48,45 +53,60 @@ const CrudPage = () => {
   });
 
   const addForm = useForm({
-    initialValues: { title: "", content: "", author: "Noma'lum" },
+    initialValues: { title: "", body: "", userId: 1 },
+    validate: {
+      title: (v) => (!v.trim() ? "Sarlavha kiriting" : null),
+      body: (v) => (!v.trim() ? "Matn kiriting" : null),
+    },
   });
 
   const editForm = useForm({
-    initialValues: { title: "", content: "", author: "" },
+    initialValues: { title: "", body: "", userId: 1 },
   });
 
   const addMutation = useMutation({
     mutationFn: addPost,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["posts"]);
+    onSuccess: (data) => {
+      queryClient.setQueryData(["posts"], (old) => [
+        { ...data, id: Date.now() },
+        ...old,
+      ]);
       addForm.reset();
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: updatePost,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["posts"]);
-      setEditModal(false);
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["posts"], (old) =>
+        old.map((p) => (p.id === updated.id ? updated : p))
+      );
+      setEditModalOpened(false);
+      setEditingPost(null);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deletePost,
-    onSuccess: () => queryClient.invalidateQueries(["posts"]),
+    onSuccess: (_, id) => {
+      queryClient.setQueryData(["posts"], (old) =>
+        old.filter((p) => p.id !== id)
+      );
+    },
   });
 
-  const openEdit = (post) => {
+  const openEditModal = (post) => {
     setEditingPost(post);
     editForm.setValues({
       title: post.title,
-      content: post.content,
-      author: post.author || "Xato",
+      body: post.body,
+      userId: post.userId,
     });
-    setEditModal(true);
+    setEditModalOpened(true);
   };
 
   const handleUpdate = (values) => {
+    if (!editingPost) return;
     updateMutation.mutate({ id: editingPost.id, ...values });
   };
 
@@ -103,9 +123,11 @@ const CrudPage = () => {
       </Title>
 
       <Card withBorder shadow="sm" p="lg" mb="xl">
-        <Title order={3}>Post qo‘shish</Title>
+        <Title order={3} mb="md">
+          Yangi post qo‘shish
+        </Title>
         <form onSubmit={addForm.onSubmit((v) => addMutation.mutate(v))}>
-          <Stack gap="md" mt="md">
+          <Stack gap="md">
             <TextInput
               label="Sarlavha"
               required
@@ -114,9 +136,9 @@ const CrudPage = () => {
             <Textarea
               label="Matn"
               required
-              {...addForm.getInputProps("content")}
+              minRows={4}
+              {...addForm.getInputProps("body")}
             />
-            <TextInput label="Muallif" {...addForm.getInputProps("author")} />
             <Button type="submit" loading={addMutation.isPending}>
               Qo‘shish
             </Button>
@@ -127,23 +149,24 @@ const CrudPage = () => {
       <Title order={3} mb="md">
         Postlar ({posts.length})
       </Title>
+
       <Stack gap="md">
         {posts.map((post) => (
           <Card key={post.id} withBorder shadow="sm" p="md">
             <Group justify="space-between">
-              <div>
-                <Text fw={600}>{post.title}</Text>
-                <Text size="sm" c="dimmed">
-                  {post.content}
+              <div style={{ flex: 1 }}>
+                <Text fw={700} size="lg">
+                  {post.title}
                 </Text>
-                {post.author && (
-                  <Text size="xs" c="gray.6">
-                    — {post.author}
-                  </Text>
-                )}
+                <Text size="sm" c="dimmed" mt={4}>
+                  {post.body}
+                </Text>
+                <Text size="xs" c="gray" mt={8}>
+                  userId: {post.userId}
+                </Text>
               </div>
               <Group gap="xs">
-                <ActionIcon color="blue" onClick={() => openEdit(post)}>
+                <ActionIcon color="blue" onClick={() => openEditModal(post)}>
                   <IconEdit size={18} />
                 </ActionIcon>
                 <ActionIcon
@@ -159,8 +182,8 @@ const CrudPage = () => {
       </Stack>
 
       <Modal
-        opened={editModal}
-        onClose={() => setEditModal(false)}
+        opened={editModalOpened}
+        onClose={() => setEditModalOpened(false)}
         title="Postni tahrirlash"
       >
         <form onSubmit={editForm.onSubmit(handleUpdate)}>
@@ -173,11 +196,11 @@ const CrudPage = () => {
             <Textarea
               label="Matn"
               required
-              {...editForm.getInputProps("content")}
+              minRows={4}
+              {...editForm.getInputProps("body")}
             />
-            <TextInput label="Muallif" {...editForm.getInputProps("author")} />
             <Group justify="flex-end" mt="md">
-              <Button variant="light" onClick={() => setEditModal(false)}>
+              <Button variant="light" onClick={() => setEditModalOpened(false)}>
                 Bekor qilish
               </Button>
               <Button type="submit" loading={updateMutation.isPending}>

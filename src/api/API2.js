@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API2 = axios.create({
-  baseURL: "https://crud-nodejs-ixa1.onrender.com/api",
+  baseURL: "https://faq-crud.onrender.com/api",
 });
 
-export default API2;    
+export default API2;
