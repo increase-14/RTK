@@ -118,10 +118,6 @@ const CrudPage = () => {
 
   return (
     <Container size="md" py="xl">
-      <Title ta="center" mb="xl">
-        CRUD
-      </Title>
-
       <Card withBorder shadow="sm" p="lg" mb="xl">
         <Title order={3} mb="md">
           Yangi post qo‘shish
