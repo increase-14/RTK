@@ -1,43 +1,84 @@
-import { Button, TextInput, Card, Stack, Title, Text } from "@mantine/core";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Button, Container, PasswordInput, TextInput } from "@mantine/core";
+import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
+import { API_DUMMY } from "../api/API3";
+import { notifications } from "@mantine/notifications";
+import useAuthStore from "../store/useAuthStore";
+import { Navigate } from "react-router-dom";
 
-const LoginPage = ({ setIsAuth }) => {
-  const navigate = useNavigate();
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+const LoginPage = () => {
+  const { login, isAuth } = useAuthStore();
 
-  const handleLogin = () => {
-    const correctPassword = "12345"; // PAROL
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: {
+      username: "emilys",
+      password: "emilyspass",
+    },
+  });
 
-    if (password === correctPassword) {
-      setIsAuth(true);
-      navigate("/crud"); 
-    } else {
-      setError("Parol noto‘g‘ri!");
-    }
+  const { mutate: loginMut } = useMutation({
+    mutationFn: async (body) => {
+      const res = await API_DUMMY.post("/auth/login", body);
+      return res.data;
+    },
+  });
+
+  const onSubmit = (data) => {
+    loginMut(data, {
+      onSuccess: (res) => {
+        login(res);
+        notifications.show({
+          title: "Kirish muvaffaqiyatli!",
+          color: "green",
+        });
+      },
+      onError: (err) => {
+        notifications.show({
+          title: err.response?.data?.message || "Login yoki parol xato",
+          color: "red",
+        });
+      },
+    });
   };
 
-  return (
-    <Card w={350} mx="auto" mt={100} p="lg" shadow="sm" withBorder>
-      <Title order={3} ta="center" mb="md">
-        Kirish
-      </Title>
+  if (isAuth) return <Navigate to="/" replace />;
 
-      <Stack>
+  return (
+    <Container size="xs" my="xl">
+      <h1 style={{ textAlign: "center", marginBottom: 30 }}>Kirish</h1>
+
+      <form onSubmit={handleSubmit(onSubmit)}>
         <TextInput
-          label="Parol"
-          type="password"
-          placeholder="Parol kiriting"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          label="Username"
+          placeholder="Username kiriting"
+          {...register("username", { required: "Username to'ldirish shart" })}
+          error={errors.username?.message}
+          mb="md"
         />
 
-        {error && <Text c="red">{error}</Text>}
+        <PasswordInput
+          label="Parol"
+          placeholder="Parolni kiriting"
+          {...register("password", { required: "Parol to'ldirish shart" })}
+          error={errors.password?.message}
+          mb="xl"
+        />
 
-        <Button onClick={handleLogin}>Kirish</Button>
-      </Stack>
-    </Card>
+        <Button
+          type="submit"
+          color="blue"
+          fullWidth
+          loading={isSubmitting}
+          loaderProps={{ type: "dots" }}
+        >
+          Kirish
+        </Button>
+      </form>
+    </Container>
   );
 };
 

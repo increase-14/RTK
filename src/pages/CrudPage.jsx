@@ -1,211 +1,105 @@
-import React, { useState } from "react";
-import axios from "axios";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useEffect } from "react";
 import {
   Container,
   Title,
   TextInput,
+  Textarea,
   Button,
-  Stack,
+  Paper,
   Group,
-  Card,
   Text,
   ActionIcon,
+  Stack,
+  Card,
+  Divider,
   Loader,
-  Modal,
-  Textarea,
-  Alert,
+  Center,
 } from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { IconTrash, IconEdit, IconInfoCircle } from "@tabler/icons-react";
-
-const api = axios.create({
-  baseURL: "https://jsonplaceholder.typicode.com",
-});
-
-const fetchPosts = async () => {
-  const { data } = await api.get("/posts");
-  return data.slice(0, 20);
-};
-
-const addPost = async (newPost) => {
-  const { data } = await api.post("/posts", newPost);
-  return data;
-};
-
-const updatePost = async ({ id, ...updated }) => {
-  const { data } = await api.put(`/posts/${id}`, updated);
-  return data;
-};
-
-const deletePost = async (id) => {
-  await api.delete(`/posts/${id}`);
-};
+import { IconTrash } from "@tabler/icons-react";
+import useAuthStore from "../store/useAuthStore";
 
 const CrudPage = () => {
-  const queryClient = useQueryClient();
-  const [editModalOpened, setEditModalOpened] = useState(false);
-  const [editingPost, setEditingPost] = useState(null);
+  const { cruds = [], load, add, remove } = useAuthStore();
 
-  const { data: posts = [], isLoading } = useQuery({
-    queryKey: ["posts"],
-    queryFn: fetchPosts,
-  });
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const addForm = useForm({
-    initialValues: { title: "", body: "", userId: 1 },
-    validate: {
-      title: (v) => (!v.trim() ? "Sarlavha kiriting" : null),
-      body: (v) => (!v.trim() ? "Matn kiriting" : null),
-    },
-  });
+  const handleAdd = (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const question = form.question.value.trim();
+    const answer = form.answer.value.trim();
 
-  const editForm = useForm({
-    initialValues: { title: "", body: "", userId: 1 },
-  });
-
-  const addMutation = useMutation({
-    mutationFn: addPost,
-    onSuccess: (data) => {
-      queryClient.setQueryData(["posts"], (old) => [
-        { ...data, id: Date.now() },
-        ...old,
-      ]);
-      addForm.reset();
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updatePost,
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["posts"], (old) =>
-        old.map((p) => (p.id === updated.id ? updated : p))
-      );
-      setEditModalOpened(false);
-      setEditingPost(null);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deletePost,
-    onSuccess: (_, id) => {
-      queryClient.setQueryData(["posts"], (old) =>
-        old.filter((p) => p.id !== id)
-      );
-    },
-  });
-
-  const openEditModal = (post) => {
-    setEditingPost(post);
-    editForm.setValues({
-      title: post.title,
-      body: post.body,
-      userId: post.userId,
-    });
-    setEditModalOpened(true);
+    if (question && answer) {
+      add(question, answer);
+      form.reset();
+    }
   };
-
-  const handleUpdate = (values) => {
-    if (!editingPost) return;
-    updateMutation.mutate({ id: editingPost.id, ...values });
-  };
-
-  if (isLoading) {
-    return (
-      <Loader size="xl" style={{ margin: "100px auto", display: "block" }} />
-    );
-  }
 
   return (
-    <Container size="md" py="xl">
-      <Card withBorder shadow="sm" p="lg" mb="xl">
-        <Title order={3} mb="md">
-          Yangi post qo‘shish
-        </Title>
-        <form onSubmit={addForm.onSubmit((v) => addMutation.mutate(v))}>
+    <Container size="md" my="xl">
+      <Title order={1} align="center" mb="xl" c="blue">
+        CRUD
+      </Title>
+
+      <Paper withBorder shadow="md" p="xl" radius="lg" mb="xl">
+        <form onSubmit={handleAdd}>
           <Stack gap="md">
             <TextInput
-              label="Sarlavha"
+              name="question"
+              label="Savol"
+              placeholder="Savol kiriting..."
               required
-              {...addForm.getInputProps("title")}
+              size="md"
             />
             <Textarea
-              label="Matn"
+              name="answer"
+              label="Javob"
+              placeholder="Javob yozing..."
               required
               minRows={4}
-              {...addForm.getInputProps("body")}
+              autosize
+              size="md"
             />
-            <Button type="submit" loading={addMutation.isPending}>
-              Qo‘shish
+            <Button type="submit" color="blue" size="md" radius="md" fullWidth>
+              Qo'shish
             </Button>
           </Stack>
         </form>
-      </Card>
+      </Paper>
 
-      <Title order={3} mb="md">
-        Postlar ({posts.length})
-      </Title>
+      {cruds.length === 0 ? (
+        <Center h={200}>
+          <Text c="dimmed" size="lg">
+            Hozircha hech narsa yo'q
+          </Text>
+        </Center>
+      ) : (
+        <Stack gap="md">
+          {cruds.map((item) => (
+            <Card key={item.id} shadow="sm" padding="lg" radius="md" withBorder>
+              <Group justify="space-between" align="flex-start">
+                <div style={{ flex: 1 }}>
+                  <Text fw={600} size="lg" mb={4}>
+                    {item.question}
+                  </Text>
+                  <Text c="dimmed">{item.answer}</Text>
+                </div>
 
-      <Stack gap="md">
-        {posts.map((post) => (
-          <Card key={post.id} withBorder shadow="sm" p="md">
-            <Group justify="space-between">
-              <div style={{ flex: 1 }}>
-                <Text fw={700} size="lg">
-                  {post.title}
-                </Text>
-                <Text size="sm" c="dimmed" mt={4}>
-                  {post.body}
-                </Text>
-                <Text size="xs" c="gray" mt={8}>
-                  userId: {post.userId}
-                </Text>
-              </div>
-              <Group gap="xs">
-                <ActionIcon color="blue" onClick={() => openEditModal(post)}>
-                  <IconEdit size={18} />
-                </ActionIcon>
                 <ActionIcon
                   color="red"
-                  onClick={() => deleteMutation.mutate(post.id)}
+                  variant="subtle"
+                  size="lg"
+                  onClick={() => remove(item.id)}
                 >
-                  <IconTrash size={18} />
+                  <IconTrash size={20} />
                 </ActionIcon>
               </Group>
-            </Group>
-          </Card>
-        ))}
-      </Stack>
-
-      <Modal
-        opened={editModalOpened}
-        onClose={() => setEditModalOpened(false)}
-        title="Postni tahrirlash"
-      >
-        <form onSubmit={editForm.onSubmit(handleUpdate)}>
-          <Stack gap="md">
-            <TextInput
-              label="Sarlavha"
-              required
-              {...editForm.getInputProps("title")}
-            />
-            <Textarea
-              label="Matn"
-              required
-              minRows={4}
-              {...editForm.getInputProps("body")}
-            />
-            <Group justify="flex-end" mt="md">
-              <Button variant="light" onClick={() => setEditModalOpened(false)}>
-                Bekor qilish
-              </Button>
-              <Button type="submit" loading={updateMutation.isPending}>
-                Saqlash
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+            </Card>
+          ))}
+        </Stack>
+      )}
     </Container>
   );
 };
